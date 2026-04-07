@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as mammoth from "mammoth";
-import * as THREE from "three";
 
 /* ─── ML Core ─────────────────────────────────────────────────────────── */
 const STOP = new Set([
@@ -156,6 +155,7 @@ html, body {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -256,6 +256,54 @@ html, body {
   0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.85; }
   50% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
 }
+@keyframes expansionSeal {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45) rotate(-18deg); }
+  35% { opacity: 0.95; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25) rotate(18deg); }
+}
+@keyframes expansionOuterSeal {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8) rotate(18deg); }
+  30% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.42) rotate(-12deg); }
+}
+@keyframes expansionShutterLeft {
+  0% { transform: translateX(-105%) skewX(-8deg); opacity: 0; }
+  20% { opacity: 1; }
+  55% { transform: translateX(-8%) skewX(-8deg); opacity: 0.96; }
+  100% { transform: translateX(-140%) skewX(-8deg); opacity: 0; }
+}
+@keyframes expansionShutterRight {
+  0% { transform: translateX(105%) skewX(-8deg); opacity: 0; }
+  20% { opacity: 1; }
+  55% { transform: translateX(8%) skewX(-8deg); opacity: 0.96; }
+  100% { transform: translateX(140%) skewX(-8deg); opacity: 0; }
+}
+@keyframes expansionHorizon {
+  0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.2) scaleY(0.8); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1.8) scaleY(1.2); }
+}
+@keyframes expansionText {
+  0% { opacity: 0; transform: translateY(16px) scale(0.92); letter-spacing: 6px; }
+  22% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-10px) scale(1.04); letter-spacing: 14px; }
+}
+@keyframes pageFloat {
+  0% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes linkPulse {
+  0%, 100% { opacity: 0.28; stroke-dashoffset: 0; }
+  50% { opacity: 0.95; stroke-dashoffset: -22; }
+}
+@keyframes linkNodePulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+@keyframes atmosphereDrift {
+  0%, 100% { transform: scale(1) translate3d(0,0,0); opacity: 0.7; }
+  50% { transform: scale(1.05) translate3d(12px,-10px,0); opacity: 1; }
+}
 
 /* ── Orb background elements ── */
 .jjk-orb {
@@ -289,9 +337,10 @@ html, body {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 8px;
-  transition: transform 0.3s cubic-bezier(.25,.8,.25,1),
-              box-shadow 0.3s cubic-bezier(.25,.8,.25,1),
-              border-color 0.3s;
+  transition: transform 0.45s cubic-bezier(.22,1,.36,1),
+              box-shadow 0.45s cubic-bezier(.22,1,.36,1),
+              border-color 0.35s ease,
+              background 0.35s ease;
   transform-style: preserve-3d;
 }
 .cursed-panel:hover {
@@ -308,7 +357,7 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 20px;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s;
+  transition: transform 0.4s cubic-bezier(.22,1,.36,1), box-shadow 0.4s cubic-bezier(.22,1,.36,1), border-color 0.3s ease;
   transform-style: preserve-3d;
   cursor: default;
 }
@@ -335,7 +384,7 @@ html, body {
     0 6px 0 #2b1e7a,
     0 10px 30px rgba(124,92,252,0.45),
     inset 0 1px 0 rgba(255,255,255,0.15);
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition: transform 0.2s cubic-bezier(.22,1,.36,1), box-shadow 0.2s cubic-bezier(.22,1,.36,1), filter 0.2s ease;
 }
 .domain-btn::before {
   content: '';
@@ -382,7 +431,7 @@ html, body {
   padding: 7px 15px;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.18s;
+  transition: all 0.28s cubic-bezier(.22,1,.36,1);
 }
 .mode-tab:hover {
   color: var(--text-muted);
@@ -444,7 +493,7 @@ html, body {
   resize: vertical;
   width: 100%;
   outline: none;
-  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  transition: border-color 0.28s ease, box-shadow 0.28s ease, background 0.28s ease, transform 0.28s ease;
   caret-color: var(--accent);
 }
 .cursed-textarea::placeholder { color: var(--text-faint); }
@@ -463,7 +512,7 @@ html, body {
   padding: 18px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.18s, background 0.18s;
+  transition: border-color 0.28s ease, background 0.28s ease, box-shadow 0.28s ease, transform 0.28s ease;
   position: relative;
   overflow: hidden;
   background:
@@ -716,6 +765,13 @@ html, body {
     radial-gradient(circle at center, rgba(0,212,255,0.12), transparent 54%),
     rgba(6,6,11,0.68);
 }
+.domain-expansion-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, transparent 20%, rgba(6,6,11,0.18) 58%, rgba(6,6,11,0.82) 100%),
+    linear-gradient(180deg, rgba(10,10,18,0.15), rgba(10,10,18,0.7));
+}
 .domain-expansion-flash {
   position: absolute;
   top: 50%;
@@ -729,7 +785,73 @@ html, body {
     0 0 100px rgba(0,212,255,0.14),
     inset 0 0 30px rgba(255,255,255,0.06);
   will-change: transform, opacity;
-  animation: expansionFlash 0.9s ease-out forwards;
+  animation: expansionFlash 1.1s ease-out forwards;
+}
+.domain-expansion-seal,
+.domain-expansion-seal-outer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 0 40px rgba(124,92,252,0.2), inset 0 0 32px rgba(255,255,255,0.04);
+}
+.domain-expansion-seal {
+  width: min(58vw, 620px);
+  aspect-ratio: 1;
+  animation: expansionSeal 1.6s cubic-bezier(.19,1,.22,1) forwards;
+}
+.domain-expansion-seal::before,
+.domain-expansion-seal::after,
+.domain-expansion-seal-outer::before {
+  content: "";
+  position: absolute;
+  inset: 7%;
+  border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,0.1);
+}
+.domain-expansion-seal::after {
+  inset: 22%;
+  border-style: solid;
+  border-color: rgba(0,212,255,0.18);
+}
+.domain-expansion-seal-outer {
+  width: min(76vw, 860px);
+  aspect-ratio: 1;
+  border-color: rgba(124,92,252,0.14);
+  animation: expansionOuterSeal 1.8s cubic-bezier(.19,1,.22,1) forwards;
+}
+.domain-expansion-shutter-left,
+.domain-expansion-shutter-right {
+  position: absolute;
+  top: -8%;
+  bottom: -8%;
+  width: 58%;
+  background:
+    linear-gradient(180deg, rgba(124,92,252,0.18), rgba(10,10,18,0.94) 18%, rgba(10,10,18,0.98)),
+    linear-gradient(90deg, rgba(255,255,255,0.04), transparent 28%);
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: 0 0 50px rgba(124,92,252,0.12);
+}
+.domain-expansion-shutter-left {
+  left: 0;
+  transform-origin: left center;
+  animation: expansionShutterLeft 1.45s cubic-bezier(.19,1,.22,1) forwards;
+}
+.domain-expansion-shutter-right {
+  right: 0;
+  transform-origin: right center;
+  animation: expansionShutterRight 1.45s cubic-bezier(.19,1,.22,1) forwards;
+}
+.domain-expansion-horizon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(92vw, 1200px);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.72), transparent);
+  box-shadow: 0 0 26px rgba(124,92,252,0.3), 0 0 40px rgba(0,212,255,0.18);
+  animation: expansionHorizon 1.35s ease-out forwards;
 }
 .domain-expansion-flash::before,
 .domain-expansion-flash::after {
@@ -752,7 +874,7 @@ html, body {
   background: linear-gradient(180deg, transparent, rgba(255,255,255,0.08), transparent);
   filter: blur(6px);
   will-change: transform, opacity;
-  animation: expansionSweep 0.9s ease-out forwards;
+  animation: expansionSweep 1.2s ease-out forwards;
 }
 .domain-expansion-runes {
   position: absolute;
@@ -765,10 +887,10 @@ html, body {
   color: rgba(236,232,248,0.12);
   text-shadow: 0 0 30px rgba(124,92,252,0.18);
   will-change: transform, opacity;
-  animation: expansionRunes 0.9s ease-out forwards;
+  animation: expansionText 1.2s cubic-bezier(.19,1,.22,1) forwards;
 }
 .domain-results-reveal {
-  animation: fadeUp 0.6s both;
+  animation: pageFloat 0.75s cubic-bezier(.22,1,.36,1) both;
 }
 .constellation-shell {
   position: relative;
@@ -883,6 +1005,28 @@ html, body {
   width: 168px;
   height: 168px;
   transform-style: preserve-3d;
+  transform: scale(var(--reactor-scale, 1));
+  transition: transform 0.45s cubic-bezier(.22,1,.36,1);
+  overflow: hidden;
+}
+.score-reactor-canvas {
+  position: absolute;
+  inset: 0;
+}
+.score-reactor-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+.score-reactor-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 .score-reactor-ring,
 .score-reactor-ring-2 {
@@ -898,7 +1042,7 @@ html, body {
   height: 168px;
   border: 1px solid var(--reactor-color);
   box-shadow: 0 0 24px color-mix(in srgb, var(--reactor-color) 24%, transparent);
-  animation: reactorSpin 12s linear infinite;
+  animation: reactorSpin var(--reactor-speed-outer, 12s) linear infinite;
 }
 .score-reactor-ring::before {
   content: "";
@@ -911,7 +1055,7 @@ html, body {
   width: 126px;
   height: 126px;
   border: 1px solid color-mix(in srgb, var(--reactor-color) 55%, transparent);
-  animation: reactorSpin 8s linear infinite reverse;
+  animation: reactorSpin var(--reactor-speed-inner, 8s) linear infinite reverse;
 }
 .score-reactor-ring-2::before,
 .score-reactor-ring-2::after {
@@ -944,7 +1088,7 @@ html, body {
     0 0 34px color-mix(in srgb, var(--reactor-color) 34%, transparent),
     0 0 70px color-mix(in srgb, var(--reactor-color) 18%, transparent),
     inset 0 0 18px rgba(255,255,255,0.08);
-  animation: reactorCorePulse 2.8s ease-in-out infinite;
+  animation: reactorCorePulse var(--reactor-pulse, 2.8s) ease-in-out infinite;
 }
 .score-reactor-core::before {
   content: "";
@@ -953,6 +1097,45 @@ html, body {
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--reactor-color) 18%, transparent), transparent 70%);
   filter: blur(12px);
+}
+.energy-links-shell {
+  position: relative;
+  margin: -8px 0 28px;
+  padding: 20px 24px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.05);
+  background:
+    radial-gradient(circle at center, rgba(124,92,252,0.08), transparent 42%),
+    linear-gradient(180deg, rgba(12,12,22,0.86), rgba(8,8,16,0.78));
+  overflow: hidden;
+}
+.energy-links-svg {
+  width: 100%;
+  height: 120px;
+  display: block;
+}
+.energy-link-path {
+  fill: none;
+  stroke: rgba(124,92,252,0.22);
+  stroke-width: 2;
+}
+.energy-link-path.active {
+  stroke: var(--link-color, rgba(124,92,252,0.9));
+  stroke-linecap: round;
+  stroke-dasharray: 12 14;
+  animation: linkPulse 1.3s linear infinite;
+  filter: drop-shadow(0 0 8px var(--link-color, rgba(124,92,252,0.5)));
+}
+.energy-link-node {
+  transform-origin: center;
+  animation: linkNodePulse 1.8s ease-in-out infinite;
+}
+.atmosphere-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  animation: atmosphereDrift 16s ease-in-out infinite;
 }
 @media (max-width: 900px) {
   .constellation-grid {
@@ -965,11 +1148,29 @@ html, body {
 `;
 
 /* ─── Background ──────────────────────────────────────────────────────── */
-function CursedBackground() {
+function CursedBackground({ pct = 0, loading = false }) {
+  const mood = pct >= 70
+    ? {
+        left: "rgba(0,232,135,0.16)",
+        right: "rgba(0,212,255,0.15)",
+        center: "rgba(0,232,135,0.12)",
+      }
+    : pct >= 45
+      ? {
+          left: "rgba(255,171,48,0.16)",
+          right: "rgba(124,92,252,0.16)",
+          center: "rgba(255,171,48,0.1)",
+        }
+      : {
+          left: "rgba(255,40,85,0.16)",
+          right: "rgba(124,92,252,0.14)",
+          center: "rgba(255,40,85,0.1)",
+        };
   return (
     <div style={{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}}>
-      <div style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 80% 60% at 15% 40%, rgba(76,29,149,0.18) 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 85% 15%, rgba(14,60,130,0.14) 0%, transparent 50%), var(--bg)"}}/>
+      <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse 80% 60% at 15% 40%, ${mood.left} 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 85% 15%, ${mood.right} 0%, transparent 50%), var(--bg)`}}/>
       <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(rgba(124,92,252,0.1) 1px, transparent 1px)",backgroundSize:"30px 30px"}}/>
+      <div className="atmosphere-layer" style={{background:`radial-gradient(circle at 50% 48%, ${mood.center} 0%, transparent 42%)`, opacity: loading ? 1 : 0.55}}/>
       <div className="jjk-orb jjk-orb-1"/>
       <div className="jjk-orb jjk-orb-2"/>
       <div className="jjk-orb jjk-orb-3"/>
@@ -996,12 +1197,154 @@ function CursedSigil({size=36,color="var(--accent)"}) {
 /* ─── Score Aura ──────────────────────────────────────────────────────── */
 function ScoreAura({pct}) {
   const {t,c} = scoreLabelDetails(pct);
+  const scale = 0.92 + pct / 200;
+  const outerSpeed = `${Math.max(5.5, 12 - pct / 10)}s`;
+  const innerSpeed = `${Math.max(4.2, 8 - pct / 14)}s`;
+  const pulse = `${Math.max(1.5, 2.9 - pct / 60)}s`;
+  const mountRef = useRef(null);
+  const frameRef = useRef(0);
+  const [ready,setReady] = useState(false);
+
+  useEffect(()=>{
+    if (!mountRef.current) return;
+    let cancelled = false;
+    let cleanup = ()=>{};
+
+    import("three").then((THREE)=>{
+      if (cancelled || !mountRef.current) return;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+      camera.position.set(0, 0, 5.1);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      mountRef.current.appendChild(renderer.domElement);
+      setReady(true);
+
+      const color = pct >= 70 ? "#00e887" : pct >= 45 ? "#ffab30" : "#ff2855";
+      const accent = pct >= 70 ? "#7affcb" : pct >= 45 ? "#ffd37d" : "#ff6a8f";
+
+      const group = new THREE.Group();
+      scene.add(group);
+
+      const coreGeometry = new THREE.IcosahedronGeometry(1.02, 8);
+      const coreMaterial = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(accent),
+        emissive: new THREE.Color(color),
+        emissiveIntensity: 1.1 + pct / 120,
+        roughness: 0.2,
+        metalness: 0.14,
+        transmission: 0.16,
+        transparent: true,
+        opacity: 0.92,
+        clearcoat: 1,
+        clearcoatRoughness: 0.14,
+      });
+      const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+      group.add(coreMesh);
+
+      const shellGeometry = new THREE.IcosahedronGeometry(1.28, 2);
+      const shellMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        wireframe: true,
+        transparent: true,
+        opacity: 0.24 + pct / 500,
+      });
+      const shellMesh = new THREE.Mesh(shellGeometry, shellMaterial);
+      group.add(shellMesh);
+
+      const ringGeometry = new THREE.TorusGeometry(1.62, 0.028, 16, 120);
+      const ringMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+      ringMesh.rotation.x = Math.PI / 2;
+      group.add(ringMesh);
+
+      const ringMesh2 = new THREE.Mesh(new THREE.TorusGeometry(1.28, 0.02, 12, 100), ringMaterial.clone());
+      ringMesh2.material.color = new THREE.Color(accent);
+      ringMesh2.material.opacity = 0.22;
+      ringMesh2.rotation.set(Math.PI / 2.6, 0.4, 0);
+      group.add(ringMesh2);
+
+      scene.add(new THREE.AmbientLight(color, 1.1));
+      const key = new THREE.PointLight(accent, 14, 14, 2);
+      key.position.set(2.2, 1.8, 3.4);
+      scene.add(key);
+      const fill = new THREE.PointLight("#ffffff", 5, 10, 2);
+      fill.position.set(-2.4, -1.6, 2.8);
+      scene.add(fill);
+
+      const resize = ()=>{
+        const node = mountRef.current;
+        if (!node) return;
+        const width = node.clientWidth || 1;
+        const height = node.clientHeight || 1;
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      };
+      resize();
+      const observer = new ResizeObserver(resize);
+      observer.observe(mountRef.current);
+
+      const clock = new THREE.Clock();
+      const animate = ()=>{
+        const elapsed = clock.getElapsedTime();
+        group.rotation.y += 0.004 + pct / 25000;
+        group.rotation.x = Math.sin(elapsed * 0.8) * 0.18;
+        coreMesh.rotation.x += 0.0035;
+        coreMesh.rotation.z += 0.0025;
+        shellMesh.rotation.y -= 0.0045;
+        shellMesh.rotation.z += 0.003;
+        ringMesh.rotation.z += 0.005 + pct / 18000;
+        ringMesh2.rotation.z -= 0.006 + pct / 22000;
+        coreMaterial.emissiveIntensity = 1 + pct / 130 + Math.sin(elapsed * 2.2) * 0.08;
+        renderer.render(scene, camera);
+        frameRef.current = requestAnimationFrame(animate);
+      };
+      frameRef.current = requestAnimationFrame(animate);
+
+      cleanup = ()=>{
+        cancelAnimationFrame(frameRef.current);
+        observer.disconnect();
+        renderer.dispose();
+        coreGeometry.dispose();
+        coreMaterial.dispose();
+        shellGeometry.dispose();
+        shellMaterial.dispose();
+        ringGeometry.dispose();
+        ringMaterial.dispose();
+        ringMesh2.geometry.dispose();
+        ringMesh2.material.dispose();
+        if (mountRef.current?.contains(renderer.domElement)) {
+          mountRef.current.removeChild(renderer.domElement);
+        }
+      };
+    });
+
+    return ()=>{
+      cancelled = true;
+      setReady(false);
+      cleanup();
+    };
+  },[pct]);
+
   return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-      <div className="score-reactor" style={{"--reactor-color":c}}>
+      <div className="score-reactor" style={{"--reactor-color":c,"--reactor-scale":scale,"--reactor-speed-outer":outerSpeed,"--reactor-speed-inner":innerSpeed,"--reactor-pulse":pulse}}>
+        {!ready && <div className="score-reactor-fallback">Reactor</div>}
+        <div ref={mountRef} className="score-reactor-canvas"/>
         <div className="score-reactor-ring"/>
         <div className="score-reactor-ring-2"/>
-        <div className="score-reactor-core"/>
         <div style={{
           position:"absolute",top:"50%",left:"50%",transform:"translate(-50%, -50%)",
           zIndex:2,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"
@@ -1109,6 +1452,43 @@ function KeywordConstellation({ shared, onlyA, onlyB, labelA, labelB }) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EnergyLinkPanel({ loading, phase, scoreColor, labelA, labelB, pct }) {
+  return (
+    <div className="energy-links-shell">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+        <span className="section-label">Resonance Flow</span>
+        <span style={{fontSize:10,color:"var(--text-faint)",letterSpacing:1.5}}>
+          {loading ? phase || "CHANNELING CURSED ENERGY" : `REACTOR STABILITY ${pct}%`}
+        </span>
+      </div>
+      <svg className="energy-links-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="linkA" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgba(124,92,252,0.15)" />
+            <stop offset="100%" stopColor="rgba(124,92,252,0.95)" />
+          </linearGradient>
+          <linearGradient id="linkB" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgba(0,212,255,0.95)" />
+            <stop offset="100%" stopColor="rgba(0,212,255,0.15)" />
+          </linearGradient>
+        </defs>
+        <path className="energy-link-path" d="M145 84 C270 84, 340 84, 500 60" />
+        <path className={`energy-link-path ${loading ? "active" : ""}`} style={{"--link-color":"url(#linkA)"}} d="M145 84 C270 84, 340 84, 500 60" />
+        <path className="energy-link-path" d="M855 84 C730 84, 660 84, 500 60" />
+        <path className={`energy-link-path ${loading ? "active" : ""}`} style={{"--link-color":"url(#linkB)"}} d="M855 84 C730 84, 660 84, 500 60" />
+        <circle className="energy-link-node" cx="145" cy="84" r="10" fill="var(--accent)" />
+        <circle className="energy-link-node" cx="855" cy="84" r="10" fill="var(--blue)" style={{animationDelay:"0.25s"}} />
+        <circle className="energy-link-node" cx="500" cy="60" r="13" fill={scoreColor} style={{animationDelay:"0.1s"}} />
+      </svg>
+      <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",alignItems:"center",gap:14}}>
+        <div style={{fontSize:10,letterSpacing:1.8,color:"var(--accent)",fontWeight:700,textTransform:"uppercase"}}>{labelA}</div>
+        <div style={{fontSize:10,letterSpacing:2,color:scoreColor,fontWeight:700,textTransform:"uppercase"}}>Reactor Core</div>
+        <div style={{fontSize:10,letterSpacing:1.8,color:"var(--blue)",fontWeight:700,textTransform:"uppercase",textAlign:"right"}}>{labelB}</div>
       </div>
     </div>
   );
@@ -1254,149 +1634,168 @@ function ReactiveOrbHero({modeLabel}) {
   const frameRef = useRef(0);
   const currentRef = useRef({x:0,y:0});
   const targetRef = useRef({x:0,y:0});
+  const [heroReady,setHeroReady] = useState(false);
 
   useEffect(()=>{
     if (!canvasWrapRef.current) return;
+    let cancelled = false;
+    let cleanup = ()=>{};
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-    camera.position.set(0, 0.2, 5.8);
+    import("three").then((THREE)=>{
+      if (cancelled || !canvasWrapRef.current) return;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
-    canvasWrapRef.current.appendChild(renderer.domElement);
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
+      camera.position.set(0, 0.2, 5.8);
 
-    const group = new THREE.Group();
-    scene.add(group);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      canvasWrapRef.current.appendChild(renderer.domElement);
+      setHeroReady(true);
 
-    const coreGeometry = new THREE.IcosahedronGeometry(1.15, 12);
-    const coreMaterial = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color("#6ea8ff"),
-      emissive: new THREE.Color("#4b2ad6"),
-      emissiveIntensity: 1.55,
-      roughness: 0.18,
-      metalness: 0.12,
-      transmission: 0.24,
-      transparent: true,
-      opacity: 0.96,
-      thickness: 1.2,
-      clearcoat: 1,
-      clearcoatRoughness: 0.18,
-      iridescence: 0.45,
-    });
-    const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
-    group.add(coreMesh);
+      const group = new THREE.Group();
+      scene.add(group);
 
-    const wireMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color("#8fe7ff"),
-      wireframe: true,
-      transparent: true,
-      opacity: 0.28,
-    });
-    const wireMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1.32, 4), wireMaterial);
-    group.add(wireMesh);
+      const coreGeometry = new THREE.IcosahedronGeometry(1.15, 12);
+      const coreMaterial = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#6ea8ff"),
+        emissive: new THREE.Color("#4b2ad6"),
+        emissiveIntensity: 1.55,
+        roughness: 0.18,
+        metalness: 0.12,
+        transmission: 0.24,
+        transparent: true,
+        opacity: 0.96,
+        thickness: 1.2,
+        clearcoat: 1,
+        clearcoatRoughness: 0.18,
+        iridescence: 0.45,
+      });
+      const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+      group.add(coreMesh);
 
-    const haloMaterial = new THREE.MeshBasicMaterial({
-      color: new THREE.Color("#7c5cfc"),
-      transparent: true,
-      opacity: 0.12,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const haloMesh = new THREE.Mesh(new THREE.TorusGeometry(1.95, 0.03, 24, 200), haloMaterial);
-    haloMesh.rotation.x = Math.PI / 2;
-    group.add(haloMesh);
+      const wireMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color("#8fe7ff"),
+        wireframe: true,
+        transparent: true,
+        opacity: 0.28,
+      });
+      const wireGeometry = new THREE.IcosahedronGeometry(1.32, 4);
+      const wireMesh = new THREE.Mesh(wireGeometry, wireMaterial);
+      group.add(wireMesh);
 
-    const haloMesh2 = new THREE.Mesh(new THREE.TorusGeometry(1.48, 0.025, 20, 160), haloMaterial.clone());
-    haloMesh2.material.color = new THREE.Color("#00d4ff");
-    haloMesh2.material.opacity = 0.14;
-    haloMesh2.rotation.set(Math.PI / 2.6, 0, 0.45);
-    group.add(haloMesh2);
+      const haloMaterial = new THREE.MeshBasicMaterial({
+        color: new THREE.Color("#7c5cfc"),
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const haloGeometry = new THREE.TorusGeometry(1.95, 0.03, 24, 200);
+      const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
+      haloMesh.rotation.x = Math.PI / 2;
+      group.add(haloMesh);
 
-    const ambient = new THREE.AmbientLight("#7c5cfc", 1.15);
-    scene.add(ambient);
+      const haloGeometry2 = new THREE.TorusGeometry(1.48, 0.025, 20, 160);
+      const haloMaterial2 = haloMaterial.clone();
+      haloMaterial2.color = new THREE.Color("#00d4ff");
+      haloMaterial2.opacity = 0.14;
+      const haloMesh2 = new THREE.Mesh(haloGeometry2, haloMaterial2);
+      haloMesh2.rotation.set(Math.PI / 2.6, 0, 0.45);
+      group.add(haloMesh2);
 
-    const key = new THREE.PointLight("#7c5cfc", 26, 18, 2);
-    key.position.set(2.8, 2.4, 3.6);
-    scene.add(key);
+      const ambient = new THREE.AmbientLight("#7c5cfc", 1.15);
+      scene.add(ambient);
 
-    const fill = new THREE.PointLight("#00d4ff", 18, 16, 2);
-    fill.position.set(-3.2, -1.2, 3.4);
-    scene.add(fill);
+      const key = new THREE.PointLight("#7c5cfc", 26, 18, 2);
+      key.position.set(2.8, 2.4, 3.6);
+      scene.add(key);
 
-    const rim = new THREE.PointLight("#ffffff", 8, 14, 2);
-    rim.position.set(0, 0, 4.8);
-    scene.add(rim);
+      const fill = new THREE.PointLight("#00d4ff", 18, 16, 2);
+      fill.position.set(-3.2, -1.2, 3.4);
+      scene.add(fill);
 
-    const resize = ()=>{
-      const node = canvasWrapRef.current;
-      if (!node) return;
-      const width = node.clientWidth || 1;
-      const height = node.clientHeight || 1;
-      renderer.setSize(width, height, false);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-    };
+      const rim = new THREE.PointLight("#ffffff", 8, 14, 2);
+      rim.position.set(0, 0, 4.8);
+      scene.add(rim);
 
-    resize();
-    const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(canvasWrapRef.current);
+      const resize = ()=>{
+        const node = canvasWrapRef.current;
+        if (!node) return;
+        const width = node.clientWidth || 1;
+        const height = node.clientHeight || 1;
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      };
 
-    const clock = new THREE.Clock();
-    const animate = ()=>{
-      const current = currentRef.current;
-      const target = targetRef.current;
-      current.x += (target.x - current.x) * 0.12;
-      current.y += (target.y - current.y) * 0.12;
+      resize();
+      const resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(canvasWrapRef.current);
 
-      const rotateX = -(current.y * 18);
-      const rotateY = current.x * 22;
-      const glowX = 50 + current.x * 30;
-      const glowY = 40 + current.y * 25;
-      const elapsed = clock.getElapsedTime();
+      const clock = new THREE.Clock();
+      const animate = ()=>{
+        const current = currentRef.current;
+        const target = targetRef.current;
+        current.x += (target.x - current.x) * 0.12;
+        current.y += (target.y - current.y) * 0.12;
 
-      if (shellRef.current) {
-        shellRef.current.style.setProperty("--orb-glow", `radial-gradient(circle at ${glowX}% ${glowY}%, rgba(124,92,252,0.22), transparent 28%)`);
-      }
+        const rotateX = -(current.y * 18);
+        const rotateY = current.x * 22;
+        const glowX = 50 + current.x * 30;
+        const glowY = 40 + current.y * 25;
+        const elapsed = clock.getElapsedTime();
 
-      group.rotation.x = THREE.MathUtils.degToRad(rotateX * 0.28) + Math.sin(elapsed * 0.45) * 0.05;
-      group.rotation.y = THREE.MathUtils.degToRad(rotateY * 0.34) + elapsed * 0.28;
-      coreMesh.rotation.x += 0.0025;
-      coreMesh.rotation.y += 0.004;
-      wireMesh.rotation.x -= 0.0028;
-      wireMesh.rotation.z += 0.0035;
-      haloMesh.rotation.z += 0.0038;
-      haloMesh2.rotation.z -= 0.0042;
-      coreMesh.position.x = current.x * 0.12;
-      coreMesh.position.y = -current.y * 0.08;
-      wireMesh.position.copy(coreMesh.position);
-      haloMesh.position.x = current.x * 0.08;
-      haloMesh.position.y = -current.y * 0.05;
-      haloMesh2.position.copy(haloMesh.position);
-      coreMaterial.emissiveIntensity = 1.35 + Math.max(Math.abs(current.x), Math.abs(current.y)) * 0.8 + Math.sin(elapsed * 1.8) * 0.08;
+        if (shellRef.current) {
+          shellRef.current.style.setProperty("--orb-glow", `radial-gradient(circle at ${glowX}% ${glowY}%, rgba(124,92,252,0.22), transparent 28%)`);
+        }
 
-      renderer.render(scene, camera);
+        group.rotation.x = THREE.MathUtils.degToRad(rotateX * 0.28) + Math.sin(elapsed * 0.45) * 0.05;
+        group.rotation.y = THREE.MathUtils.degToRad(rotateY * 0.34) + elapsed * 0.28;
+        coreMesh.rotation.x += 0.0025;
+        coreMesh.rotation.y += 0.004;
+        wireMesh.rotation.x -= 0.0028;
+        wireMesh.rotation.z += 0.0035;
+        haloMesh.rotation.z += 0.0038;
+        haloMesh2.rotation.z -= 0.0042;
+        coreMesh.position.x = current.x * 0.12;
+        coreMesh.position.y = -current.y * 0.08;
+        wireMesh.position.copy(coreMesh.position);
+        haloMesh.position.x = current.x * 0.08;
+        haloMesh.position.y = -current.y * 0.05;
+        haloMesh2.position.copy(haloMesh.position);
+        coreMaterial.emissiveIntensity = 1.35 + Math.max(Math.abs(current.x), Math.abs(current.y)) * 0.8 + Math.sin(elapsed * 1.8) * 0.08;
+
+        renderer.render(scene, camera);
+        frameRef.current = requestAnimationFrame(animate);
+      };
 
       frameRef.current = requestAnimationFrame(animate);
-    };
+      cleanup = ()=>{
+        cancelAnimationFrame(frameRef.current);
+        resizeObserver.disconnect();
+        renderer.dispose();
+        coreGeometry.dispose();
+        coreMaterial.dispose();
+        wireGeometry.dispose();
+        wireMaterial.dispose();
+        haloGeometry.dispose();
+        haloMaterial.dispose();
+        haloGeometry2.dispose();
+        haloMaterial2.dispose();
+        if (canvasWrapRef.current?.contains(renderer.domElement)) {
+          canvasWrapRef.current.removeChild(renderer.domElement);
+        }
+      };
+    });
 
-    frameRef.current = requestAnimationFrame(animate);
     return ()=>{
-      cancelAnimationFrame(frameRef.current);
-      resizeObserver.disconnect();
-      renderer.dispose();
-      coreGeometry.dispose();
-      coreMaterial.dispose();
-      wireMesh.geometry.dispose();
-      wireMaterial.dispose();
-      haloMesh.geometry.dispose();
-      haloMaterial.dispose();
-      haloMesh2.geometry.dispose();
-      haloMesh2.material.dispose();
-      canvasWrapRef.current?.contains(renderer.domElement) && canvasWrapRef.current.removeChild(renderer.domElement);
+      cancelled = true;
+      setHeroReady(false);
+      cleanup();
     };
   },[]);
 
@@ -1462,6 +1861,16 @@ function ReactiveOrbHero({modeLabel}) {
         </div>
 
         <div className="hero-orb-stage">
+          {!heroReady && (
+            <div style={{
+              position:"absolute",inset:0,display:"grid",placeItems:"center",
+              color:"var(--text-faint)",fontSize:11,letterSpacing:2,textTransform:"uppercase",
+              background:"radial-gradient(circle at center, rgba(124,92,252,0.08), transparent 36%)",
+              zIndex:0
+            }}>
+              Stabilizing 3D core...
+            </div>
+          )}
           <div ref={canvasWrapRef} className="hero-webgl-canvas"/>
           <div className="hero-orb-ring"/>
           <div className="hero-orb-ring-2"/>
@@ -1483,6 +1892,7 @@ function ReactiveOrbHero({modeLabel}) {
 }
 
 export default function App() {
+  const resultsRef = useRef(null);
   const [mode,setMode]     = useState("resume");
   const [docA,setDocA]     = useState(SAMPLES.resume.a);
   const [docB,setDocB]     = useState(SAMPLES.resume.b);
@@ -1503,6 +1913,14 @@ export default function App() {
     document.title = "DOMAIN EXPANSION — Cursed Analysis Engine";
     return ()=>{ style.remove(); };
   },[]);
+
+  useEffect(()=>{
+    if (!result || !resultsRef.current) return;
+    const id = window.setTimeout(()=>{
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return ()=>window.clearTimeout(id);
+  },[result]);
 
   const switchMode = id=>{
     setMode(id); setDocA(SAMPLES[id]?.a||""); setDocB(SAMPLES[id]?.b||"");
@@ -1545,9 +1963,15 @@ export default function App() {
 
   return (
     <div style={{fontFamily:"var(--font-ui)",background:"var(--bg)",color:"var(--text)",minHeight:"100vh",position:"relative"}}>
-      <CursedBackground/>
+      <CursedBackground pct={pct} loading={loading || expanding}/>
       {expanding && (
         <div className="domain-expansion-overlay" aria-hidden="true">
+          <div className="domain-expansion-vignette"/>
+          <div className="domain-expansion-shutter-left"/>
+          <div className="domain-expansion-shutter-right"/>
+          <div className="domain-expansion-seal-outer"/>
+          <div className="domain-expansion-seal"/>
+          <div className="domain-expansion-horizon"/>
           <div className="domain-expansion-sweep"/>
           <div className="domain-expansion-flash"/>
           <div className="domain-expansion-runes">DOMAIN EXPANSION</div>
@@ -1662,9 +2086,18 @@ export default function App() {
           )}
         </div>
 
+        <EnergyLinkPanel
+          loading={loading}
+          phase={phase}
+          scoreColor={scoreColor}
+          labelA={M.a}
+          labelB={M.b}
+          pct={pct}
+        />
+
         {/* ── RESULTS ── */}
         {result && (
-          <div className="domain-results-reveal">
+          <div ref={resultsRef} className="domain-results-reveal">
 
             {/* ── Score + Verdict ── */}
             <div style={{
