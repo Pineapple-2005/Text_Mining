@@ -14,7 +14,7 @@ const STOP = new Set([
   "what","which","who","whom","when","where","how","all","any","much","many",
   "own","same","only","once","s","t","re","ve","ll","d","m","us","its"
 ]);
-const tokenize = t => t.toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>2&&!STOP.has(w));
+const tokenize = t => t.toLowerCase().replaceAll(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>2&&!STOP.has(w));
 const tf = tokens => { const f={}; tokens.forEach(t=>{f[t]=(f[t]||0)+1;}); const mx=Math.max(...Object.values(f),1); Object.keys(f).forEach(k=>{f[k]/=mx;}); return f; };
 const tfidf = docs => {
   const tok=docs.map(tokenize), N=docs.length, idf={};
@@ -23,6 +23,35 @@ const tfidf = docs => {
 };
 const cosine = (a,b) => { const T=new Set([...Object.keys(a),...Object.keys(b)]); let dot=0,mA=0,mB=0; T.forEach(t=>{const x=a[t]||0,y=b[t]||0; dot+=x*y;mA+=x*x;mB+=y*y;}); return mA&&mB?dot/(Math.sqrt(mA)*Math.sqrt(mB)):0; };
 const top = (v,n=10) => Object.entries(v).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w])=>w);
+const unique = arr => [...new Set(arr)];
+
+function scoreLabelDetails(pct) {
+  if (pct >= 70) return { t: "Strong Match", c: "var(--green)" };
+  if (pct >= 45) return { t: "Moderate Match", c: "var(--amber)" };
+  return { t: "Weak Match", c: "var(--red)" };
+}
+
+function buildLocalAnalysis({ pct, overlap, onlyA, onlyB, modeLabel }) {
+  const matchLabel = scoreLabelDetails(pct).t;
+  const sharedText = overlap.length
+    ? `Both documents share ${overlap.slice(0, 5).join(", ")} and other terms, which supports the similarity score.`
+    : "The documents share little direct vocabulary, so the score is driven mainly by broader thematic overlap rather than exact term reuse.";
+  const gapText = onlyA.length || onlyB.length
+    ? `Document A emphasizes ${onlyA.slice(0, 4).join(", ") || "different terminology"} while Document B emphasizes ${onlyB.slice(0, 4).join(", ") || "different terminology"}, so the content is not fully aligned.`
+    : "There is no strong term-level gap between the documents.";
+  const recommendationText = pct >= 70
+    ? `Keep the current structure and terminology aligned for ${modeLabel.toLowerCase()}. Review any remaining wording differences before final use.`
+    : `Add more shared terminology and align the key concepts for ${modeLabel.toLowerCase()}. Recheck the section structure and terminology so both documents emphasize the same ideas.`;
+
+  return {
+    verdict: `${matchLabel} for ${modeLabel.toLowerCase()}: the documents are ${pct >= 70 ? "closely aligned" : pct >= 45 ? "partially aligned" : "only loosely aligned"} based on shared vocabulary and topic overlap.`,
+    match_label: matchLabel,
+    strength: sharedText,
+    gap: gapText,
+    recommendation: recommendationText,
+    confidence: pct >= 70 ? "high" : pct >= 45 ? "medium" : "low",
+  };
+}
 
 /* ─── File Extraction ─────────────────────────────────────────────────── */
 async function extractPDF(file) {
@@ -47,33 +76,16 @@ async function extractPDF(file) {
 }
 
 async function extractImageOCR(file) {
-  const base64 = await new Promise((res,rej)=>{
-    const r=new FileReader();
-    r.onload=e=>res(e.target.result.split(",")[1]);
-    r.onerror=rej; r.readAsDataURL(file);
-  });
-  const mediaType=file.type||"image/jpeg";
-  const resp=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"claude-sonnet-4-20250514", max_tokens:2000,
-      messages:[{role:"user",content:[
-        {type:"image",source:{type:"base64",media_type:mediaType,data:base64}},
-        {type:"text",text:"Extract all text from this image exactly as it appears. Output only the extracted text, nothing else."}
-      ]}]
-    })
-  });
-  const data=await resp.json();
-  return data.content?.find(b=>b.type==="text")?.text||"";
+  throw new Error("Image OCR is not available in this local build. Upload PDF, DOCX, TXT, or paste text instead.");
 }
 
-const IMG_TYPES=["jpg","jpeg","png","gif","webp","bmp","tiff"];
+const IMG_TYPES=new Set(["jpg","jpeg","png","gif","webp","bmp","tiff"]);
 async function extractFile(file) {
   const ext=file.name.split(".").pop().toLowerCase();
-  if(ext==="txt"||ext==="md") return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(file);});
+  if(ext==="txt"||ext==="md") return file.text();
   if(ext==="pdf") return extractPDF(file);
   if(ext==="docx"){const ab=await file.arrayBuffer();const r=await mammoth.extractRawText({arrayBuffer:ab});return r.value;}
-  if(IMG_TYPES.includes(ext)) return extractImageOCR(file);
+  if(IMG_TYPES.has(ext)) return extractImageOCR(file);
   throw new Error(`Unsupported file: .${ext}. Supported: PDF, DOCX, TXT, JPG, PNG, WEBP, TIFF`);
 }
 
@@ -101,7 +113,7 @@ const SAMPLES={
 };
 
 /* ─── Score helpers ───────────────────────────────────────────────────── */
-const scoreLabel = p => p>=70?{t:"Strong Match",c:"var(--green)"}:p>=45?{t:"Moderate Match",c:"var(--amber)"}:{t:"Weak Match",c:"var(--red)"};
+const scoreLabel = p => scoreLabelDetails(p);
 
 /* ─── Sub-components ──────────────────────────────────────────────────── */
 function ScoreBar({pct}){
@@ -142,9 +154,11 @@ function UploadPanel({label,icon,value,fileName,fileType,onChange,onFile,accent}
   const ref=useRef();
 
   const handle=useCallback(async f=>{
-    if(!f)return; setErrMsg(""); setBusy(true);
+    if(!f) return;
+    setErrMsg("");
+    setBusy(true);
     const ext=f.name.split(".").pop().toLowerCase();
-    const isImg=IMG_TYPES.includes(ext);
+    const isImg=IMG_TYPES.has(ext);
     setOcrMode(isImg);
     try{const t=await extractFile(f); onFile(t,f.name,ext);}
     catch(e){setErrMsg(e.message); setOcrMode(false);}
@@ -180,7 +194,7 @@ function UploadPanel({label,icon,value,fileName,fileType,onChange,onFile,accent}
           transition:"border-color .15s, background .15s",marginBottom:12
         }}>
         <input ref={ref} type="file" accept=".txt,.pdf,.docx,.md,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff"
-          style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)handle(f);e.target.value="";}}/>
+          style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f) handle(f);e.target.value="";}}/>
         {busy?(
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"4px 0"}}>
             <svg width="14" height="14" viewBox="0 0 14 14" style={{animation:"spin .7s linear infinite",flexShrink:0}}>
@@ -290,9 +304,9 @@ export default function App(){
     `;
     document.head.appendChild(style);
     return()=>{
-      document.head.removeChild(link1);
-      document.head.removeChild(link2);
-      document.head.removeChild(style);
+      link1.remove();
+      link2.remove();
+      style.remove();
     };
   },[]);
 
@@ -314,41 +328,18 @@ export default function App(){
       const score=cosine(vA,vB);
       const tA=top(vA,10),tB=top(vB,10);
       const sA=new Set(tA),sB=new Set(tB);
-      const overlap=tA.filter(w=>sB.has(w));
-      const onlyA=tA.filter(w=>!sB.has(w));
-      const onlyB=tB.filter(w=>!sA.has(w));
+      const overlap=unique(tA.filter(w=>sB.has(w)));
+      const onlyA=unique(tA.filter(w=>!sB.has(w)));
+      const onlyB=unique(tB.filter(w=>!sA.has(w)));
 
-      setPhase("Generating AI interpretation");
-      const prompt=`You are a professional document analysis system. Analyze these two documents objectively.
-USE CASE: ${M.label}
-DOCUMENT A (${M.a}):
-"""${docA.slice(0,900)}"""
-DOCUMENT B (${M.b}):
-"""${docB.slice(0,900)}"""
-COMPUTED METRICS:
-- Cosine similarity: ${(score*100).toFixed(1)}%
-- Shared key terms: ${overlap.join(", ")||"none detected"}
-- Terms unique to A: ${onlyA.slice(0,6).join(", ")||"none"}
-- Terms unique to B: ${onlyB.slice(0,6).join(", ")||"none"}
-
-Respond ONLY with valid JSON, no markdown fences:
-{
-  "verdict": "One clear, professional sentence summarizing the match result",
-  "match_label": "Strong Match" or "Moderate Match" or "Weak Match",
-  "strength": "2 sentences on what is well-aligned between the documents",
-  "gap": "2 sentences on what is missing or misaligned",
-  "recommendation": "2 concrete, specific, actionable steps to improve alignment",
-  "confidence": "high" or "medium" or "low"
-}`;
-
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:800,messages:[{role:"user",content:prompt}]})
+      setPhase("Generating analysis summary");
+      const ai=buildLocalAnalysis({
+        pct: Math.round(score*100),
+        overlap,
+        onlyA,
+        onlyB,
+        modeLabel: M.label,
       });
-      const data=await res.json();
-      const raw=data.content?.find(b=>b.type==="text")?.text||"{}";
-      let ai={};
-      try{ai=JSON.parse(raw.replace(/```json|```/g,"").trim());}catch{ai={verdict:raw,match_label:"Result"};}
 
       setResult({
         score, pct:Math.round(score*100), topA:tA, topB:tB,
@@ -356,7 +347,7 @@ Respond ONLY with valid JSON, no markdown fences:
         tokA:tokenize(docA).length, tokB:tokenize(docB).length,
         vocab:new Set([...tokenize(docA),...tokenize(docB)]).size
       });
-    }catch(e){setErr("Analysis failed. Please try again.");}
+    }catch(e){setErr(e instanceof Error ? e.message : "Analysis failed. Please try again.");}
     setLoading(false); setPhase("");
   },[docA,docB,M]);
 
@@ -420,7 +411,7 @@ Respond ONLY with valid JSON, no markdown fences:
             background:loading?"var(--bg-muted)":"var(--accent)",
             color:loading?"var(--text-faint)":"#fff",
             transition:"background .15s, opacity .15s",
-            opacity:loading?1:1,letterSpacing:.2
+            letterSpacing:.2
           }}>
             {loading?(
               <span style={{display:"flex",alignItems:"center",gap:8}}>
