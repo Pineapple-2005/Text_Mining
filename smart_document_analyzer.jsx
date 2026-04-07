@@ -5,25 +5,13 @@ import "./smart_document_analyzer.css";
 /* eslint-disable react/prop-types */
 
 /* --- ML Core ------------------------------------------------------------- */
-const STOP = new Set([
-  "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
-  "from", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do",
-  "does", "did", "will", "would", "could", "should", "may", "might", "shall", "can",
-  "not", "no", "nor", "so", "yet", "both", "either", "neither", "each", "few", "more",
-  "most", "other", "some", "such", "than", "then", "that", "this", "these", "those",
-  "it", "its", "we", "our", "you", "your", "he", "his", "she", "her", "they", "their",
-  "i", "me", "my", "us", "as", "if", "about", "above", "after", "before", "between",
-  "into", "through", "during", "also", "just", "very", "too", "well", "there", "here",
-  "what", "which", "who", "whom", "when", "where", "how", "all", "any", "much", "many",
-  "own", "same", "only", "once", "s", "t", "re", "ve", "ll", "d", "m", "us", "its"
-]);
 
 const tokenize = (t) =>
   t
     .toLowerCase()
     .replaceAll(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP.has(w));
+    .filter((w) => w.length > 0);
 
 const tf = (tokens) => {
   const f = {};
@@ -239,76 +227,18 @@ const DOMAIN_PROFILES = [
 
 const DOMAIN_SCENES = {
   gojo: {
-    landingKicker: "Six Eyes Sync",
-    landingTitle: "Limitless-grade document resonance with polished tactical calm",
-    landingBody:
-      "Map document intent through a serene but high-fidelity domain: cool gradients, precise motion, and clean readability while preserving deterministic NLP output.",
-    chips: ["Infinity cadence", "Blue void harmonics", "Measured reveal flow"],
     analyzerHeadline: "Precision resonance in a Limitless-styled control room",
     analyzerBody:
       "Balanced motion and high-clarity contrast for long reading sessions, research comparisons, and dossier triage.",
   },
   sukuna: {
-    landingKicker: "Shrine Dominance",
-    landingTitle: "Malevolent high-impact visuals for relentless comparison rituals",
-    landingBody:
-      "Switch to a feral domain profile with hotter contrast, sharper motion, and intense pulse effects while preserving the same trusted analyzer outputs.",
-    chips: ["Shrine pressure", "Crimson slash rhythm", "Aggressive reveal bursts"],
     analyzerHeadline: "High-pressure resonance with shrine-driven visual force",
     analyzerBody:
       "Fast visual feedback and heavier atmospheric energy tuned for dramatic review passes and quick divergence spotting.",
   },
 };
 
-const LANDING_FEATURES = [
-  {
-    title: "Deterministic Core",
-    body: "TF-IDF vectors and cosine similarity stay unchanged, so visual upgrades never alter analysis math.",
-  },
-  {
-    title: "Dual Domain Profiles",
-    body: "Toggle between Gojo and Sukuna palettes plus motion behavior for different review moods.",
-  },
-  {
-    title: "Cursed Pulse Engine",
-    body: "Click-triggered pulse bursts with optional audio modulation to make interactions feel alive.",
-  },
-  {
-    title: "Anime Reveal Choreography",
-    body: "Results unlock in staged cards so verdict, strengths, and overlap feel cinematic but still readable.",
-  },
-];
 
-const DOMAIN_REFERENCES = {
-  gojo: [
-    {
-      title: "Infinity Control",
-      text: "Perfect for careful sorting of overlapping terms before final mission drafts.",
-    },
-    {
-      title: "Hollow Purple Finish",
-      text: "Use final recommendation output as your one-shot refinement pass for cleaner alignment.",
-    },
-    {
-      title: "Reverse Technique Recovery",
-      text: "When match confidence drops, use divergent traces to restore shared intent quickly.",
-    },
-  ],
-  sukuna: [
-    {
-      title: "Malevolent Shrine Spread",
-      text: "Rapidly expose mismatched phrase clusters and slice through noisy wording.",
-    },
-    {
-      title: "Cleave and Dismantle",
-      text: "Isolate unique terms in each document and cut non-essential variation fast.",
-    },
-    {
-      title: "Black Flash Timing",
-      text: "Use staged result reveals to sharpen focus exactly when high-value signals land.",
-    },
-  ],
-};
 
 const PULSE_BARS = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -535,7 +465,7 @@ function useCursedPulse(domainProfile, audioPulseEnabled) {
 
       const ctx = audioContextRef.current;
       if (ctx && typeof ctx.close === "function") {
-        ctx.close().catch(() => {});
+        ctx.close().catch(() => { });
       }
     },
     []
@@ -552,7 +482,7 @@ function useCursedPulse(domainProfile, audioPulseEnabled) {
 
       const ctx = audioContextRef.current;
       if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
+        ctx.resume().catch(() => { });
       }
 
       const now = ctx.currentTime;
@@ -641,7 +571,6 @@ export default function App() { // NOSONAR
 
   const modeMeta = MODES.find((m) => m.id === mode) || MODES[0];
   const domainScene = DOMAIN_SCENES[domainProfile] || DOMAIN_SCENES.gojo;
-  const domainRefs = DOMAIN_REFERENCES[domainProfile] || DOMAIN_REFERENCES.gojo;
   const revealStage = useRevealStage(result);
   const { pulseBursts, pulseLevel, triggerPulse } = useCursedPulse(domainProfile, audioPulseEnabled);
 
@@ -833,65 +762,6 @@ export default function App() { // NOSONAR
       </header>
 
       <main className="jjk-main">
-        <section className="landing-stage">
-          <div className="landing-copy">
-            <p className="landing-kicker">{domainScene.landingKicker}</p>
-            <h2>{domainScene.landingTitle}</h2>
-            <p>{domainScene.landingBody}</p>
-
-            <div className="landing-cta-row">
-              <button
-                type="button"
-                className="landing-cta landing-cta--primary"
-                onClick={(evt) => {
-                  triggerPulse(1.15, evt);
-                  scrollToAnalyzer();
-                }}
-              >
-                Enter Analyzer Domain
-              </button>
-              <button
-                type="button"
-                className="landing-cta landing-cta--ghost"
-                onClick={(evt) => triggerPulse(1.2, evt)}
-              >
-                Trigger Cursed Pulse
-              </button>
-            </div>
-
-            <div className="landing-chip-row">
-              {domainScene.chips.map((chip) => (
-                <span key={chip}>{chip}</span>
-              ))}
-            </div>
-          </div>
-
-          <div className="landing-visual" aria-hidden="true">
-            <div className="landing-orbit landing-orbit--outer" />
-            <div className="landing-orbit landing-orbit--inner" />
-            <img src="/images/jjk-seal-main.svg" alt="" className="landing-seal landing-seal--core" />
-            <img src="/images/jjk-seal-blue.svg" alt="" className="landing-seal landing-seal--blue" />
-            <img src="/images/jjk-seal-red.svg" alt="" className="landing-seal landing-seal--red" />
-          </div>
-        </section>
-
-        <section className="landing-grid">
-          {LANDING_FEATURES.map((feature) => (
-            <article key={feature.title} className="landing-tile">
-              <h3>{feature.title}</h3>
-              <p>{feature.body}</p>
-            </article>
-          ))}
-        </section>
-
-        <section className="landing-grid landing-grid--references">
-          {domainRefs.map((ref) => (
-            <article key={ref.title} className="landing-tile landing-tile--reference">
-              <h3>{ref.title}</h3>
-              <p>{ref.text}</p>
-            </article>
-          ))}
-        </section>
 
         <section className="hero-card" id="analyzer" ref={analyzerRef}>
           <div className="hero-copy">
