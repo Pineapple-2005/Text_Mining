@@ -1,0 +1,28 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(120 120) rotate(90) scale(120)">
+      <stop stop-color="#1A274A"/>
+      <stop offset="1" stop-color="#090E1B"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="22" y1="22" x2="218" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#79D1FF"/>
+      <stop offset="1" stop-color="#8F7DFF"/>
+    </linearGradient>
+    <filter id="glow" x="0" y="0" width="240" height="240" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+  <rect width="240" height="240" rx="120" fill="url(#bg)"/>
+  <circle cx="120" cy="120" r="92" stroke="url(#ring)" stroke-width="4"/>
+  <circle cx="120" cy="120" r="74" stroke="#5DAEFF" stroke-opacity="0.65" stroke-width="1.8" stroke-dasharray="8 6"/>
+  <circle cx="120" cy="120" r="56" stroke="#F7648A" stroke-opacity="0.55" stroke-width="1.6"/>
+  <path d="M120 48V192" stroke="#90DDFF" stroke-width="2" stroke-linecap="round"/>
+  <path d="M48 120H192" stroke="#90DDFF" stroke-width="2" stroke-linecap="round"/>
+  <path d="M70 70L170 170" stroke="#8A8DFF" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M170 70L70 170" stroke="#8A8DFF" stroke-width="1.6" stroke-linecap="round"/>
+  <g filter="url(#glow)">
+    <circle cx="120" cy="120" r="16" fill="#86D7FF" fill-opacity="0.72"/>
+  </g>
+  <circle cx="120" cy="120" r="12" fill="#0D1732" stroke="#C1EEFF" stroke-width="1.5"/>
+  <path d="M116 115L124 120L116 125" stroke="#C9F4FF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

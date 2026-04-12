@@ -1,0 +1,14 @@
+<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="blueBg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(110 110) rotate(90) scale(110)">
+      <stop stop-color="#182D5B"/>
+      <stop offset="1" stop-color="#080E1E"/>
+    </radialGradient>
+  </defs>
+  <rect width="220" height="220" rx="110" fill="url(#blueBg)"/>
+  <circle cx="110" cy="110" r="82" stroke="#6FCCFF" stroke-width="3"/>
+  <circle cx="110" cy="110" r="64" stroke="#9CE9FF" stroke-opacity="0.72" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <path d="M110 42L131 89L178 110L131 131L110 178L89 131L42 110L89 89L110 42Z" stroke="#B5EFFF" stroke-opacity="0.85" stroke-width="1.8"/>
+  <circle cx="110" cy="110" r="18" fill="#1A3262" stroke="#B5EFFF" stroke-width="1.4"/>
+  <path d="M102 109H118M110 101V117" stroke="#D2F6FF" stroke-width="1.6" stroke-linecap="round"/>
+</svg>
