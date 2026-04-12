@@ -1,3 +1,5 @@
+// Normalize raw text into lowercase alphanumeric tokens so all downstream comparisons
+// work from the same cleaned representation.
 const tokenize = (t) =>
   t
     .toLowerCase()
@@ -89,6 +91,8 @@ const SYNONYM_MAP = new Map(
   SYNONYM_GROUPS.flatMap((group) => group.map((word) => [word, group[0]])),
 );
 
+// Sentence normalization is stricter than tokenization because exact sentence reuse
+// should survive punctuation and capitalization changes.
 const normalizeSentence = (text) =>
   text
     .toLowerCase()
@@ -142,6 +146,8 @@ const weightedTokenScore = (token) => {
   return 0.7;
 };
 
+// Break each document into sentence-sized units so the plagiarism mode can point to
+// suspicious local passages instead of only producing one whole-document score.
 const segmentText = (text) =>
   sentenceSplit(text).map((raw, index) => ({
     id: index,
@@ -164,6 +170,7 @@ const ngramOverlapScore = (tokensA, tokensB, size = 3) => {
 function longestCommonTokenRun(tokensA, tokensB) {
   if (!tokensA.length || !tokensB.length) return { length: 0, text: "" };
 
+  // Dynamic programming keeps track of the longest contiguous shared token span.
   const dp = Array(tokensB.length + 1).fill(0);
   let bestLength = 0;
   let bestEndIndex = -1;
@@ -206,6 +213,8 @@ function alignTokenSequences(tokensA, tokensB) {
     return { score: 0, matchedWeight: 0, maxWeight: Math.max(tokensA.length, tokensB.length, 1), substitutions: 0 };
   }
 
+  // Weighted sequence alignment rewards preserved order and near-synonym substitutions,
+  // which helps catch lightly edited paraphrases.
   const dp = Array.from({ length: tokensA.length + 1 }, () => Array(tokensB.length + 1).fill(0));
 
   for (let i = 1; i <= tokensA.length; i += 1) {
@@ -259,6 +268,7 @@ function comparePassages(segmentA, segmentB) {
   const exactMatch = segmentA.normalized.length > 0 && segmentA.normalized === segmentB.normalized;
   const passageDensity = ratio(longestRun.length, Math.max(Math.min(segmentA.tokens.length, segmentB.tokens.length), 1));
 
+  // Passage scoring intentionally favors structural reuse signals over broad semantic similarity.
   const score = clip01(
     semanticScore * 0.1
       + ngram.score * 0.2
@@ -298,6 +308,8 @@ function findCandidatePassages(docA, docB) {
   const segmentsB = segmentText(docB);
   const candidates = [];
 
+  // Compare every source sentence against every submitted sentence, then keep only
+  // the strongest review candidates for the UI and aggregate score.
   segmentsA.forEach((segmentA) => {
     segmentsB.forEach((segmentB) => {
       const candidate = comparePassages(segmentA, segmentB);
@@ -319,6 +331,7 @@ function aggregatePassageEvidence(candidates, tokenFloor) {
     };
   }
 
+  // Fold sentence-level evidence back into document-level signals.
   const strongestPassageScore = candidates[0].score;
   const suspiciousPassageCount = candidates.filter((candidate) => candidate.score >= 0.6).length;
   const coveredTokens = candidates.reduce((sum, candidate) => sum + candidate.longestSharedRun, 0);
@@ -401,6 +414,8 @@ function analyzePlagiarismMode({ semanticScore, docA, docB }) {
   const candidatePassages = findCandidatePassages(docA, docB);
   const passageEvidence = aggregatePassageEvidence(candidatePassages, Math.min(tokensA.length, tokensB.length));
 
+  // The final suspicious-reuse score blends broad overlap with localized evidence so
+  // one copied passage can matter even if the full documents are not identical.
   const suspicion = clip01(
     semanticScore * 0.1
       + phraseOverlap * 0.25
@@ -496,10 +511,12 @@ function analyzeByMode({ mode, docA, docB, modeLabel }) {
   let modeResult;
   switch (mode) {
     case "plagiarism":
+      // Echo screening layers reuse-focused logic on top of the shared semantic baseline.
       modeResult = analyzePlagiarismMode({ semanticScore, docA, docB });
       break;
     case "general":
     default:
+      // General mode stays close to TF-IDF/cosine similarity and shared-term reporting.
       modeResult = analyzeGeneralMode({ pct: basePct, overlap, onlyA, onlyB, modeLabel });
       break;
   }
