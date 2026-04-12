@@ -1,128 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as mammoth from "mammoth";
+import { analyzeByMode } from "./analysisEngine.js";
 import "./smart_document_analyzer.css";
 
 /* eslint-disable react/prop-types */
-
-/* --- ML Core ------------------------------------------------------------- */
-
-const tokenize = (t) =>
-  t
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 0);
-
-const tf = (tokens) => {
-  const f = {};
-  tokens.forEach((t) => {
-    f[t] = (f[t] || 0) + 1;
-  });
-  const mx = Math.max(...Object.values(f), 1);
-  Object.keys(f).forEach((k) => {
-    f[k] /= mx;
-  });
-  return f;
-};
-
-const tfidf = (docs) => {
-  const tok = docs.map(tokenize);
-  const N = docs.length;
-  const idf = {};
-
-  new Set(tok.flat()).forEach((w) => {
-    const df = tok.filter((d) => d.includes(w)).length;
-    
-    // Special handling for 2-document comparisons
-    if (N === 2) {
-      // For 2 docs: words appearing in both get meaningful weight (1.0)
-      // words appearing in one get slightly higher weight (1.2)
-      idf[w] = df === 2 ? 1.0 : 1.2;
-    } else {
-      // Standard formula for larger corpus
-      idf[w] = Math.log((N + 1) / (df + 1)) + 1;
-    }
-  });
-
-  return tok.map((tokens) => {
-    const f = tf(tokens);
-    const v = {};
-    Object.keys(f).forEach((t) => {
-      v[t] = f[t] * (idf[t] || 1);
-    });
-    return v;
-  });
-};
-
-const cosine = (a, b) => {
-  const terms = new Set([...Object.keys(a), ...Object.keys(b)]);
-  let dot = 0;
-  let mA = 0;
-  let mB = 0;
-
-  terms.forEach((t) => {
-    const x = a[t] || 0;
-    const y = b[t] || 0;
-    dot += x * y;
-    mA += x * x;
-    mB += y * y;
-  });
-
-  return mA && mB ? dot / (Math.sqrt(mA) * Math.sqrt(mB)) : 0;
-};
-
-const top = (v, n = 10) =>
-  Object.entries(v)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n)
-    .map(([w]) => w);
-
-const unique = (arr) => [...new Set(arr)];
 
 function scoreLabelDetails(pct) {
   if (pct >= 70) return { t: "Special Grade Resonance", c: "var(--grade-special)" };
   if (pct >= 45) return { t: "Grade 1 Resonance", c: "var(--grade-mid)" };
   return { t: "Grade 4 Resonance", c: "var(--grade-low)" };
 }
-
-function buildLocalAnalysis({ pct, overlap, onlyA, onlyB, modeLabel }) {
-  const matchLabel = scoreLabelDetails(pct).t;
-  const overlapLead = overlap.slice(0, 5).join(", ");
-  const onlyALead = onlyA.slice(0, 4).join(", ");
-  const onlyBLead = onlyB.slice(0, 4).join(", ");
-
-  let resonanceState = "low and unstable";
-  let confidence = "low";
-  if (pct >= 70) {
-    resonanceState = "high and coherent";
-    confidence = "high";
-  } else if (pct >= 45) {
-    resonanceState = "partial with notable variance";
-    confidence = "medium";
-  }
-
-  const sharedText = overlap.length
-    ? `Shared cursed signatures include ${overlapLead}. These recurring terms strongly influence the resonance score.`
-    : "Very little direct cursed vocabulary overlaps, so this comparison relies more on broad thematic intent than exact term echoes.";
-
-  const gapText = onlyA.length || onlyB.length
-    ? `Document A channels ${onlyALead || "distinct terminology"}, while Document B channels ${onlyBLead || "distinct terminology"}. The gap suggests different focus zones.`
-    : "No major term-level divergence was detected between the two documents.";
-
-  const recommendationText = pct >= 70
-    ? `The ritual is stable for ${modeLabel.toLowerCase()}. Keep the structure and terminology aligned, then run a final review pass for phrasing consistency.`
-    : `For ${modeLabel.toLowerCase()}, align key terms and core concepts more tightly. Rework sections so both texts express the same intent and technical focus.`;
-
-  return {
-    verdict: `${matchLabel}: the cursed resonance between documents is ${resonanceState}.`,
-    match_label: matchLabel,
-    strength: sharedText,
-    gap: gapText,
-    recommendation: recommendationText,
-    confidence,
-  };
-}
-
 /* --- File Extraction ----------------------------------------------------- */
 async function extractPDF(file) {
   if (!globalThis.pdfjsLib) {
@@ -172,18 +59,6 @@ async function extractFile(file) {
 /* --- Config -------------------------------------------------------------- */
 const MODES = [
   {
-    id: "resume",
-    label: "Sorcerer Recruitment",
-    a: "Sorcerer Profile",
-    b: "Mission Brief"
-  },
-  {
-    id: "research",
-    label: "Technique Research Duel",
-    a: "Field Study A",
-    b: "Field Study B"
-  },
-  {
     id: "plagiarism",
     label: "Cursed Echo Screening",
     a: "Source Scroll",
@@ -198,14 +73,6 @@ const MODES = [
 ];
 
 const SAMPLES = {
-  resume: {
-    a: "First-year sorcerer with hands-on experience in anomaly triage, cursed object cataloging, and threat response. Skilled in Python tooling, text analytics, and incident reports. Built lightweight APIs for mission logs, coordinated with field teams, and maintained cloud-hosted datasets with strong documentation discipline.",
-    b: "Tokyo branch seeks a mission analyst who can process cursed incident reports, build Python automation, and maintain searchable archives. Experience with NLP pipelines, REST APIs, and cloud data operations is required. The role supports active response teams and post-mission intelligence reviews."
-  },
-  research: {
-    a: "This study maps cursed residue intensity near high-density urban wards. Using time-series anomaly tracking and lexical clustering, the team observed recurring spikes around abandoned infrastructure. Findings suggest that social stress indicators correlate with unstable energy signatures.",
-    b: "We present a longitudinal analysis of urban cursed activity using text-mined mission reports and temporal hotspot mapping. The strongest signal appears around infrastructure neglect and unresolved incident chains. Results support early-warning models for curse manifestation control."
-  },
   plagiarism: {
     a: "Domain expansion techniques require precise verbal structure and disciplined energy routing. Sorcerers who stabilize both sequence and intent can maintain a domain for longer durations while limiting collateral collapse.",
     b: "Executing domain expansion depends on consistent phrasing and controlled flow of cursed energy. Practitioners that keep sequence and intent synchronized tend to sustain domains longer and reduce structural failure."
@@ -238,7 +105,7 @@ const DOMAIN_SCENES = {
   gojo: {
     analyzerHeadline: "Precision resonance in a Limitless-styled control room",
     analyzerBody:
-      "Balanced motion and high-clarity contrast for long reading sessions, research comparisons, and dossier triage.",
+      "Balanced motion and high-clarity contrast for long reading sessions, paraphrase screening, and TF-IDF dossier triage.",
   },
   sukuna: {
     analyzerHeadline: "High-pressure resonance with shrine-driven visual force",
@@ -564,9 +431,9 @@ function useCursedPulse(domainProfile, audioPulseEnabled) {
 
 /* --- Main App ------------------------------------------------------------ */
 export default function App() { // NOSONAR
-  const [mode, setMode] = useState("resume");
-  const [docA, setDocA] = useState(SAMPLES.resume.a);
-  const [docB, setDocB] = useState(SAMPLES.resume.b);
+  const [mode, setMode] = useState("plagiarism");
+  const [docA, setDocA] = useState(SAMPLES.plagiarism.a);
+  const [docB, setDocB] = useState(SAMPLES.plagiarism.b);
   const [metaA, setMetaA] = useState({ name: "", ext: "" });
   const [metaB, setMetaB] = useState({ name: "", ext: "" });
   const [result, setResult] = useState(null);
@@ -614,46 +481,19 @@ export default function App() { // NOSONAR
     try {
       setPhase("Computing TF-IDF vectors");
       await new Promise((r) => setTimeout(r, 260));
-      const [vA, vB] = tfidf([docA, docB]);
 
       setPhase("Measuring cosine similarity");
       await new Promise((r) => setTimeout(r, 220));
-      const score = cosine(vA, vB);
-      const tA = top(vA, 10);
-      const tB = top(vB, 10);
-
-      const sA = new Set(tA);
-      const sB = new Set(tB);
-
-      const overlap = unique(tA.filter((w) => sB.has(w)));
-      const onlyA = unique(tA.filter((w) => !sB.has(w)));
-      const onlyB = unique(tB.filter((w) => !sA.has(w)));
 
       setPhase("Generating analysis summary");
       await new Promise((r) => setTimeout(r, 220));
-
-      const pct = Math.round(score * 100);
-      const ai = buildLocalAnalysis({
-        pct,
-        overlap,
-        onlyA,
-        onlyB,
+      const analysisResult = analyzeByMode({
+        mode,
+        docA,
+        docB,
         modeLabel: modeMeta.label,
       });
-
-      setResult({
-        score,
-        pct,
-        topA: tA,
-        topB: tB,
-        overlap,
-        onlyA,
-        onlyB,
-        ai,
-        tokA: tokenize(docA).length,
-        tokB: tokenize(docB).length,
-        vocab: new Set([...tokenize(docA), ...tokenize(docB)]).size,
-      });
+      setResult(analysisResult);
 
       triggerPulse(0.9);
     } catch (e) {
@@ -662,7 +502,7 @@ export default function App() { // NOSONAR
 
     setLoading(false);
     setPhase("");
-  }, [docA, docB, modeMeta.label, triggerPulse]);
+  }, [docA, docB, mode, modeMeta.label, triggerPulse]);
 
   const startAnalyze = useCallback(
     (evt) => {
@@ -893,6 +733,19 @@ export default function App() { // NOSONAR
             </article>
 
             <article className={`result-card reveal-card reveal-card--3 ${revealStage >= 3 ? "is-visible" : ""}`}>
+              <Section title="Mode Signal Breakdown">
+                <div className="stats-grid">
+                  {(result.modeSignals || []).map(([k, v]) => (
+                    <div key={k} className="stat-item">
+                      <div className="stat-item__key">{k}</div>
+                      <div className="stat-item__value">{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            </article>
+
+            <article className={`result-card reveal-card reveal-card--4 ${revealStage >= 4 ? "is-visible" : ""}`}>
               <Section title="Cursed Term Signatures">
                 <div className="term-columns">
                   {[
@@ -917,7 +770,7 @@ export default function App() { // NOSONAR
               </Section>
             </article>
 
-            <article className={`result-card reveal-card reveal-card--4 ${revealStage >= 4 ? "is-visible" : ""}`}>
+            <article className={`result-card reveal-card reveal-card--5 ${revealStage >= 5 ? "is-visible" : ""}`}>
               <Section title="Curse Overlap Breakdown">
                 <div className="overlap-grid">
                   {[
@@ -948,11 +801,76 @@ export default function App() { // NOSONAR
               </Section>
             </article>
 
-            <article className={`result-card reveal-card reveal-card--5 ${revealStage >= 5 ? "is-visible" : ""}`}>
+            <article className={`result-card reveal-card reveal-card--6 ${revealStage >= 6 ? "is-visible" : ""}`}>
+              {mode === "plagiarism" ? (
+                <Section title="Suspicious Passage Review">
+                  {result.suspiciousPassages?.length ? (
+                    <div className="passage-stack">
+                      {result.suspiciousPassages.map((passage, index) => (
+                        <article key={`${passage.sourceId}-${passage.submittedId}-${index}`} className="passage-card">
+                          <div className="passage-card__meta">
+                            <span className={`passage-kind passage-kind--${passage.kind}`}>{passage.kind}</span>
+                            <span>{Math.round(passage.score * 100)}% confidence</span>
+                            <span>{passage.longestSharedRun} shared tokens</span>
+                          </div>
+
+                          <div className="passage-columns">
+                            <div className="passage-column">
+                              <div className="term-column__title">{modeMeta.a}</div>
+                              <p>{passage.sourceText}</p>
+                            </div>
+                            <div className="passage-column">
+                              <div className="term-column__title">{modeMeta.b}</div>
+                              <p>{passage.submittedText}</p>
+                            </div>
+                          </div>
+
+                          <div className="passage-evidence">
+                            <span>Longest shared text: {passage.longestSharedText || "No long contiguous span detected"}</span>
+                            {passage.repeatedPhrases?.length ? (
+                              <span>Repeated phrases: {passage.repeatedPhrases.join(", ")}</span>
+                            ) : (
+                              <span>Repeated phrases: none retained after boilerplate filtering</span>
+                            )}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="none-copy">No suspicious passage pairs were localized.</p>
+                  )}
+                </Section>
+              ) : (
+                <Section title="Engine Ritual Details">
+                  <div className="stats-grid">
+                    {[
+                      ["Algorithm", "TF-IDF + Cosine Similarity"],
+                      ["Document A tokens", result.tokA.toLocaleString()],
+                      ["Document B tokens", result.tokB.toLocaleString()],
+                      ["Shared vocabulary", `${result.vocab.toLocaleString()} terms`],
+                      ["Raw cosine score", result.score.toFixed(6)],
+                      ["Scale", "0.000 (no match) to 1.000 (identical)"],
+                    ].map(([k, v]) => (
+                      <div key={k} className="stat-item">
+                        <div className="stat-item__key">{k}</div>
+                        <div className="stat-item__value">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+            </article>
+
+            <article className={`result-card reveal-card reveal-card--7 ${revealStage >= 6 ? "is-visible" : ""}`}>
               <Section title="Engine Ritual Details">
                 <div className="stats-grid">
                   {[
-                    ["Algorithm", "TF-IDF + Cosine Similarity"],
+                    [
+                      "Algorithm",
+                      mode === "plagiarism"
+                        ? "TF-IDF + phrase overlap + sentence normalization + passage localization"
+                        : "TF-IDF + Cosine Similarity",
+                    ],
                     ["Document A tokens", result.tokA.toLocaleString()],
                     ["Document B tokens", result.tokB.toLocaleString()],
                     ["Shared vocabulary", `${result.vocab.toLocaleString()} terms`],
