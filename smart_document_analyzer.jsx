@@ -1,118 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as mammoth from "mammoth";
+import { analyzeDocuments, scoreLabelDetails } from "./analysisEngine.js";
 import "./smart_document_analyzer.css";
 
 /* eslint-disable react/prop-types */
-
-/* --- ML Core ------------------------------------------------------------- */
-
-const tokenize = (t) =>
-  t
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 0);
-
-const tf = (tokens) => {
-  const f = {};
-  tokens.forEach((t) => {
-    f[t] = (f[t] || 0) + 1;
-  });
-  const mx = Math.max(...Object.values(f), 1);
-  Object.keys(f).forEach((k) => {
-    f[k] /= mx;
-  });
-  return f;
-};
-
-const tfidf = (docs) => {
-  const tok = docs.map(tokenize);
-  const N = docs.length;
-  const idf = {};
-
-  new Set(tok.flat()).forEach((w) => {
-    const df = tok.filter((d) => d.includes(w)).length;
-    idf[w] = Math.log((N + 1) / (df + 1)) + 1;
-  });
-
-  return tok.map((tokens) => {
-    const f = tf(tokens);
-    const v = {};
-    Object.keys(f).forEach((t) => {
-      v[t] = f[t] * (idf[t] || 1);
-    });
-    return v;
-  });
-};
-
-const cosine = (a, b) => {
-  const terms = new Set([...Object.keys(a), ...Object.keys(b)]);
-  let dot = 0;
-  let mA = 0;
-  let mB = 0;
-
-  terms.forEach((t) => {
-    const x = a[t] || 0;
-    const y = b[t] || 0;
-    dot += x * y;
-    mA += x * x;
-    mB += y * y;
-  });
-
-  return mA && mB ? dot / (Math.sqrt(mA) * Math.sqrt(mB)) : 0;
-};
-
-const top = (v, n = 10) =>
-  Object.entries(v)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, n)
-    .map(([w]) => w);
-
-const unique = (arr) => [...new Set(arr)];
-
-function scoreLabelDetails(pct) {
-  if (pct >= 70) return { t: "Special Grade Resonance", c: "var(--grade-special)" };
-  if (pct >= 45) return { t: "Grade 1 Resonance", c: "var(--grade-mid)" };
-  return { t: "Grade 4 Resonance", c: "var(--grade-low)" };
-}
-
-function buildLocalAnalysis({ pct, overlap, onlyA, onlyB, modeLabel }) {
-  const matchLabel = scoreLabelDetails(pct).t;
-  const overlapLead = overlap.slice(0, 5).join(", ");
-  const onlyALead = onlyA.slice(0, 4).join(", ");
-  const onlyBLead = onlyB.slice(0, 4).join(", ");
-
-  let resonanceState = "low and unstable";
-  let confidence = "low";
-  if (pct >= 70) {
-    resonanceState = "high and coherent";
-    confidence = "high";
-  } else if (pct >= 45) {
-    resonanceState = "partial with notable variance";
-    confidence = "medium";
-  }
-
-  const sharedText = overlap.length
-    ? `Shared cursed signatures include ${overlapLead}. These recurring terms strongly influence the resonance score.`
-    : "Very little direct cursed vocabulary overlaps, so this comparison relies more on broad thematic intent than exact term echoes.";
-
-  const gapText = onlyA.length || onlyB.length
-    ? `Document A channels ${onlyALead || "distinct terminology"}, while Document B channels ${onlyBLead || "distinct terminology"}. The gap suggests different focus zones.`
-    : "No major term-level divergence was detected between the two documents.";
-
-  const recommendationText = pct >= 70
-    ? `The ritual is stable for ${modeLabel.toLowerCase()}. Keep the structure and terminology aligned, then run a final review pass for phrasing consistency.`
-    : `For ${modeLabel.toLowerCase()}, align key terms and core concepts more tightly. Rework sections so both texts express the same intent and technical focus.`;
-
-  return {
-    verdict: `${matchLabel}: the cursed resonance between documents is ${resonanceState}.`,
-    match_label: matchLabel,
-    strength: sharedText,
-    gap: gapText,
-    recommendation: recommendationText,
-    confidence,
-  };
-}
 
 /* --- File Extraction ----------------------------------------------------- */
 async function extractPDF(file) {
@@ -210,6 +101,11 @@ const PHASE_COPY = {
   "Generating analysis summary": "Compiling technique dossier",
 };
 
+const ANALYSIS_SCOPES = [
+  { id: "pairwise", label: "Pairwise Ranking" },
+  { id: "one-to-many", label: "One vs Many" },
+];
+
 const DOMAIN_PROFILES = [
   {
     id: "gojo",
@@ -227,11 +123,13 @@ const DOMAIN_PROFILES = [
 
 const DOMAIN_SCENES = {
   gojo: {
+    landingKicker: "Multi-scroll resonance chamber",
     analyzerHeadline: "Precision resonance in a Limitless-styled control room",
     analyzerBody:
       "Balanced motion and high-clarity contrast for long reading sessions, research comparisons, and dossier triage.",
   },
   sukuna: {
+    landingKicker: "Shrine-grade comparison pressure",
     analyzerHeadline: "High-pressure resonance with shrine-driven visual force",
     analyzerBody:
       "Fast visual feedback and heavier atmospheric energy tuned for dramatic review passes and quick divergence spotting.",
@@ -243,6 +141,25 @@ const DOMAIN_SCENES = {
 const PULSE_BARS = [0, 1, 2, 3, 4, 5, 6, 7];
 
 const scoreLabel = (p) => scoreLabelDetails(p);
+
+const ACCENTS = ["var(--azure-core)", "var(--crimson-core)", "var(--theme-violet)", "var(--theme-core-soft)"];
+
+const createDocument = (label, text = "") => ({
+  id: `${label.toLowerCase().replaceAll(/\s+/g, "-")}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`,
+  label,
+  text,
+  meta: { name: "", ext: "" },
+});
+
+const createModeDocuments = (modeId) => {
+  const modeMeta = MODES.find((entry) => entry.id === modeId) || MODES[0];
+  const sample = SAMPLES[modeId] || SAMPLES.general;
+
+  return [
+    createDocument(modeMeta.a, sample.a || ""),
+    createDocument(modeMeta.b, sample.b || ""),
+  ];
+};
 
 /* --- Sub-components ------------------------------------------------------ */
 function ScoreBar({ pct }) {
@@ -556,10 +473,9 @@ function useCursedPulse(domainProfile, audioPulseEnabled) {
 /* --- Main App ------------------------------------------------------------ */
 export default function App() { // NOSONAR
   const [mode, setMode] = useState("resume");
-  const [docA, setDocA] = useState(SAMPLES.resume.a);
-  const [docB, setDocB] = useState(SAMPLES.resume.b);
-  const [metaA, setMetaA] = useState({ name: "", ext: "" });
-  const [metaB, setMetaB] = useState({ name: "", ext: "" });
+  const [documents, setDocuments] = useState(() => createModeDocuments("resume"));
+  const [analysisScope, setAnalysisScope] = useState("pairwise");
+  const [anchorDocumentId, setAnchorDocumentId] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState("");
@@ -574,27 +490,63 @@ export default function App() { // NOSONAR
   const revealStage = useRevealStage(result);
   const { pulseBursts, pulseLevel, triggerPulse } = useCursedPulse(domainProfile, audioPulseEnabled);
 
-  const scrollToAnalyzer = useCallback(() => {
-    const reduceMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    analyzerRef.current?.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "start",
-    });
-  }, []);
+  useEffect(() => {
+    if (!documents.length) return;
+    if (!anchorDocumentId || !documents.some((doc) => doc.id === anchorDocumentId)) {
+      setAnchorDocumentId(documents[0].id);
+    }
+  }, [anchorDocumentId, documents]);
 
   const switchMode = (id) => {
     setMode(id);
-    setDocA(SAMPLES[id]?.a || "");
-    setDocB(SAMPLES[id]?.b || "");
-    setMetaA({ name: "", ext: "" });
-    setMetaB({ name: "", ext: "" });
+    const nextDocuments = createModeDocuments(id);
+    setDocuments(nextDocuments);
+    setAnchorDocumentId(nextDocuments[0]?.id || "");
     setResult(null);
     setErr("");
   };
 
+  const updateDocument = useCallback((id, updater) => {
+    setDocuments((prev) =>
+      prev.map((doc) => (doc.id === id ? { ...doc, ...updater(doc) } : doc))
+    );
+  }, []);
+
+  const addDocument = useCallback(() => {
+    setDocuments((prev) => {
+      const nextDocuments = [
+        ...prev,
+        createDocument(`Document ${prev.length + 1}`),
+      ];
+
+      if (!anchorDocumentId && nextDocuments[0]) {
+        setAnchorDocumentId(nextDocuments[0].id);
+      }
+
+      return nextDocuments;
+    });
+    setResult(null);
+  }, [anchorDocumentId]);
+
+  const removeDocument = useCallback((id) => {
+    setDocuments((prev) => {
+      if (prev.length <= 2) return prev;
+
+      const nextDocuments = prev.filter((doc) => doc.id !== id);
+      if (anchorDocumentId === id) {
+        setAnchorDocumentId(nextDocuments[0]?.id || "");
+      }
+
+      return nextDocuments;
+    });
+    setResult(null);
+  }, [anchorDocumentId]);
+
   const analyze = useCallback(async () => {
-    if (!docA.trim() || !docB.trim()) {
-      setErr("Both document fields are required before starting the ritual.");
+    const populatedDocs = documents.filter((doc) => doc.text.trim());
+
+    if (populatedDocs.length < 2) {
+      setErr("Add text to at least two documents before starting the ritual.");
       return;
     }
 
@@ -605,45 +557,22 @@ export default function App() { // NOSONAR
     try {
       setPhase("Computing TF-IDF vectors");
       await new Promise((r) => setTimeout(r, 260));
-      const [vA, vB] = tfidf([docA, docB]);
 
       setPhase("Measuring cosine similarity");
       await new Promise((r) => setTimeout(r, 220));
-      const score = cosine(vA, vB);
-      const tA = top(vA, 10);
-      const tB = top(vB, 10);
-
-      const sA = new Set(tA);
-      const sB = new Set(tB);
-
-      const overlap = unique(tA.filter((w) => sB.has(w)));
-      const onlyA = unique(tA.filter((w) => !sB.has(w)));
-      const onlyB = unique(tB.filter((w) => !sA.has(w)));
 
       setPhase("Generating analysis summary");
       await new Promise((r) => setTimeout(r, 220));
 
-      const pct = Math.round(score * 100);
-      const ai = buildLocalAnalysis({
-        pct,
-        overlap,
-        onlyA,
-        onlyB,
-        modeLabel: modeMeta.label,
-      });
-
-      setResult({
-        score,
-        pct,
-        topA: tA,
-        topB: tB,
-        overlap,
-        onlyA,
-        onlyB,
-        ai,
-        tokA: tokenize(docA).length,
-        tokB: tokenize(docB).length,
-        vocab: new Set([...tokenize(docA), ...tokenize(docB)]).size,
+      setResult(
+        analyzeDocuments(documents, modeMeta.label, {
+          scope: analysisScope,
+          anchorId: analysisScope === "one-to-many" ? anchorDocumentId : undefined,
+        })
+      );
+      analyzerRef.current?.scrollIntoView({
+        behavior: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "start",
       });
 
       triggerPulse(0.9);
@@ -653,7 +582,7 @@ export default function App() { // NOSONAR
 
     setLoading(false);
     setPhase("");
-  }, [docA, docB, modeMeta.label, triggerPulse]);
+  }, [analysisScope, anchorDocumentId, documents, modeMeta.label, triggerPulse]);
 
   const startAnalyze = useCallback(
     (evt) => {
@@ -663,8 +592,10 @@ export default function App() { // NOSONAR
     [analyze, triggerPulse]
   );
 
-  const pct = result?.pct ?? 0;
-  const scoreColor = result ? scoreLabel(pct).c : "var(--ink-muted)";
+  const heroPair = result?.summary?.strongestPair ?? null;
+  const anchorDocument = result?.summary?.anchorDocument || documents.find((doc) => doc.id === anchorDocumentId) || documents[0];
+  const pct = heroPair?.pct ?? 0;
+  const scoreColor = heroPair ? scoreLabel(pct).c : "var(--ink-muted)";
   const helperText = loading && phase
     ? `${PHASE_COPY[phase] || phase}...`
     : "Image OCR is currently disabled in local mode. Use PDF, DOCX, TXT, or pasted text.";
@@ -770,6 +701,7 @@ export default function App() { // NOSONAR
             <p>{domainScene.analyzerBody}</p>
             <div className="hero-chips">
               <span>Style cadence: {DOMAIN_PROFILES.find((d) => d.id === domainProfile)?.cadence}</span>
+              <span>Analysis scope: {analysisScope === "one-to-many" ? "one vs many" : "pairwise ranking"}</span>
               <span>Dynamic pulse choreography</span>
               <span>Deterministic NLP fidelity</span>
             </div>
@@ -783,42 +715,96 @@ export default function App() { // NOSONAR
         </section>
 
         <section className="inputs-grid">
-          <UploadPanel
-            label={modeMeta.a}
-            value={docA}
-            fileName={metaA.name}
-            onChange={(v) => {
-              setDocA(v);
-              setResult(null);
-            }}
-            onFile={(t, n, e) => {
-              setDocA(t);
-              setMetaA({ name: n || "", ext: e || "" });
-              setResult(null);
-            }}
-            accent="var(--azure-core)"
-          />
+          {documents.map((doc, index) => (
+            <div key={doc.id} className="document-panel">
+              <UploadPanel
+                label={doc.label}
+                value={doc.text}
+                fileName={doc.meta.name}
+                onChange={(value) => {
+                  updateDocument(doc.id, () => ({ text: value }));
+                  setResult(null);
+                }}
+                onFile={(text, name, ext) => {
+                  updateDocument(doc.id, () => ({
+                    text,
+                    meta: { name: name || "", ext: ext || "" },
+                  }));
+                  setResult(null);
+                }}
+                accent={ACCENTS[index % ACCENTS.length]}
+              />
 
-          <UploadPanel
-            label={modeMeta.b}
-            value={docB}
-            fileName={metaB.name}
-            onChange={(v) => {
-              setDocB(v);
-              setResult(null);
-            }}
-            onFile={(t, n, e) => {
-              setDocB(t);
-              setMetaB({ name: n || "", ext: e || "" });
-              setResult(null);
-            }}
-            accent="var(--crimson-core)"
-          />
+              <div className="document-panel__tools">
+                <span>Slot {index + 1}</span>
+                {documents.length > 2 ? (
+                  <button
+                    type="button"
+                    className="inline-action"
+                    onClick={() => removeDocument(doc.id)}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ))}
         </section>
 
         {err ? <div className="global-error">{err}</div> : null}
 
+        <section className="control-card">
+          <div className="control-card__group">
+            <div className="small-label">Analysis Scope</div>
+            <div className="scope-switch" role="tablist" aria-label="Analysis scope">
+              {ANALYSIS_SCOPES.map((scope) => (
+                <button
+                  key={scope.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={analysisScope === scope.id}
+                  className={`scope-pill ${analysisScope === scope.id ? "is-active" : ""}`}
+                  onClick={() => {
+                    setAnalysisScope(scope.id);
+                    setResult(null);
+                  }}
+                >
+                  {scope.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {analysisScope === "one-to-many" ? (
+            <div className="control-card__group">
+              <label className="small-label" htmlFor="anchor-document">Anchor Document</label>
+              <select
+                id="anchor-document"
+                className="anchor-select"
+                value={anchorDocumentId || documents[0]?.id || ""}
+                onChange={(e) => {
+                  setAnchorDocumentId(e.target.value);
+                  setResult(null);
+                }}
+              >
+                {documents.map((doc) => (
+                  <option key={doc.id} value={doc.id}>{doc.label}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+        </section>
+
         <div className="action-row">
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={addDocument}
+            disabled={loading}
+          >
+            Add Document
+          </button>
+
           <button
             type="button"
             className={`analyze-btn ${loading ? "is-loading" : ""}`}
@@ -842,19 +828,25 @@ export default function App() { // NOSONAR
           <section className="results-stack is-active">
             <article className={`result-card reveal-card reveal-card--1 verdict-grid ${revealStage >= 1 ? "is-visible" : ""}`}>
               <div>
-                <div className="small-label">Curse Resonance Score</div>
+                <div className="small-label">
+                  {analysisScope === "one-to-many" ? "Best Anchor Match" : "Strongest Pair Resonance"}
+                </div>
                 <ScoreBar pct={pct} />
                 <div className="score-meta" style={{ color: scoreColor }}>
-                  {result.ai.match_label || scoreLabel(pct).t}
+                  {heroPair?.ai.match_label || scoreLabel(pct).t}
                   <span className="dot-sep">|</span>
-                  <span>{result.ai.confidence || "low"} confidence</span>
+                  <span>{heroPair?.ai.confidence || "low"} confidence</span>
                 </div>
               </div>
 
               <div>
                 <div className="small-label">Verdict</div>
-                <p className="verdict-copy">{result.ai.verdict}</p>
-                <p className="verdict-mode">Mode: {modeMeta.label}</p>
+                <p className="verdict-copy">{heroPair?.ai.verdict}</p>
+                <p className="verdict-mode">
+                  Mode: {modeMeta.label}
+                  {analysisScope === "one-to-many" && anchorDocument ? ` | Anchor: ${anchorDocument.label}` : ""}
+                  {heroPair ? ` | Lead pair: ${heroPair.docA.label} vs ${heroPair.docB.label}` : ""}
+                </p>
               </div>
             </article>
 
@@ -862,17 +854,17 @@ export default function App() { // NOSONAR
               {[
                 {
                   label: "Resonant Signatures",
-                  text: result.ai.strength,
+                  text: heroPair?.ai.strength,
                   cls: "summary-block--good",
                 },
                 {
                   label: "Divergent Traces",
-                  text: result.ai.gap,
+                  text: heroPair?.ai.gap,
                   cls: "summary-block--warn",
                 },
                 {
                   label: "Technique Refinement",
-                  text: result.ai.recommendation,
+                  text: heroPair?.ai.recommendation,
                   cls: "summary-block--focus",
                 },
               ].map((item) => (
@@ -884,43 +876,44 @@ export default function App() { // NOSONAR
             </article>
 
             <article className={`result-card reveal-card reveal-card--3 ${revealStage >= 3 ? "is-visible" : ""}`}>
-              <Section title="Cursed Term Signatures">
-                <div className="term-columns">
-                  {[
-                    { label: modeMeta.a, words: result.topA, other: new Set(result.topB) },
-                    { label: modeMeta.b, words: result.topB, other: new Set(result.topA) },
-                  ].map(({ label, words, other }) => (
-                    <div key={label}>
-                      <div className="term-column__title">{label}</div>
-                      <div className="term-list">
-                        {words.map((w) => (
-                          <Tag key={w} word={w} variant={other.has(w) ? "shared" : "neutral"} />
-                        ))}
+              <Section title={analysisScope === "one-to-many" ? "Anchor Match Ranking" : "Top Ranked Pair Matches"}>
+                <div className="pair-grid">
+                  {result.pairResults.map((pair) => (
+                    <div key={pair.id}>
+                      <div className="pair-card">
+                        <div className="pair-card__top">
+                          <div>
+                            <div className="term-column__title">{pair.docA.label} vs {pair.docB.label}</div>
+                            <p className="pair-card__copy">{pair.ai.verdict}</p>
+                          </div>
+                          <div className="pair-card__score">{pair.pct}%</div>
+                        </div>
+
+                        <div className="term-list">
+                          {pair.overlap.length ? pair.overlap.map((word) => (
+                            <Tag key={`${pair.id}-${word}`} word={word} variant="shared" />
+                          )) : <span className="none-copy">No major shared terms</span>}
+                        </div>
                       </div>
                     </div>
                   ))}
-                </div>
-
-                <div className="legend-row">
-                  <Tag word="shared term" variant="shared" />
-                  <span>appears in both documents</span>
                 </div>
               </Section>
             </article>
 
             <article className={`result-card reveal-card reveal-card--4 ${revealStage >= 4 ? "is-visible" : ""}`}>
-              <Section title="Curse Overlap Breakdown">
+              <Section title="Strongest Pair Breakdown">
                 <div className="overlap-grid">
                   {[
-                    { label: `Shared (${result.overlap.length})`, words: result.overlap, variant: "shared" },
+                    { label: `Shared (${heroPair?.overlap.length || 0})`, words: heroPair?.overlap || [], variant: "shared" },
                     {
-                      label: `Only in ${modeMeta.a} (${result.onlyA.length})`,
-                      words: result.onlyA,
+                      label: `Only in ${heroPair?.docA.label || "Document A"} (${heroPair?.onlyA.length || 0})`,
+                      words: heroPair?.onlyA || [],
                       variant: "unique",
                     },
                     {
-                      label: `Only in ${modeMeta.b} (${result.onlyB.length})`,
-                      words: result.onlyB,
+                      label: `Only in ${heroPair?.docB.label || "Document B"} (${heroPair?.onlyB.length || 0})`,
+                      words: heroPair?.onlyB || [],
                       variant: "unique",
                     },
                   ].map(({ label, words, variant }) => (
@@ -944,11 +937,13 @@ export default function App() { // NOSONAR
                 <div className="stats-grid">
                   {[
                     ["Algorithm", "TF-IDF + Cosine Similarity"],
-                    ["Document A tokens", result.tokA.toLocaleString()],
-                    ["Document B tokens", result.tokB.toLocaleString()],
-                    ["Shared vocabulary", `${result.vocab.toLocaleString()} terms`],
-                    ["Raw cosine score", result.score.toFixed(6)],
-                    ["Scale", "0.000 (no match) to 1.000 (identical)"],
+                    ["Scope", analysisScope === "one-to-many" ? "One vs Many" : "Pairwise Ranking"],
+                    ["Documents analyzed", result.summary.docCount.toLocaleString()],
+                    ["Pairwise comparisons", result.summary.pairCount.toLocaleString()],
+                    ["Average resonance", `${result.summary.avgPct.toLocaleString()}%`],
+                    ["Shared vocabulary", `${result.summary.vocab.toLocaleString()} terms`],
+                    ["Strongest raw score", heroPair?.score?.toFixed(6) || "0.000000"],
+                    ["Weakest pair", result.summary.weakestPair ? `${result.summary.weakestPair.docA.label} vs ${result.summary.weakestPair.docB.label}` : "N/A"],
                   ].map(([k, v]) => (
                     <div key={k} className="stat-item">
                       <div className="stat-item__key">{k}</div>

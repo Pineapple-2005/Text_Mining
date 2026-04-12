@@ -1,20 +1,22 @@
 # Smart Document Analyzer
 
-Smart Document Analyzer is a browser-based React app for comparing two documents with TF-IDF and cosine similarity. It supports resume matching, research comparison, plagiarism screening, and general document analysis.
+Smart Document Analyzer is a browser-based React app for comparing multiple documents with TF-IDF and cosine similarity. It supports resume matching, research comparison, plagiarism screening, and general document analysis, including both pairwise ranking and one-vs-many review.
 
 ## What It Does
 
-- Compares two text inputs and calculates a similarity score.
+- Compares two or more text inputs and ranks every pairwise similarity score.
+- Supports a one-vs-many workflow so one anchor document can be checked against a batch.
 - Extracts text from `.txt`, `.md`, `.pdf`, and `.docx` files.
 - Uses a local analysis summary to explain overlap, differences, and recommendations.
 - Provides preset comparison modes for common document workflows.
+- Lets you add and remove document panels without changing the upload workflow.
 
 ## How It Works
 
 1. Each document is tokenized and cleaned with a stop-word filter.
-2. TF-IDF vectors are built for both documents.
-3. Cosine similarity is used to produce the match score.
-4. The app summarizes shared terms, unique terms, and practical guidance.
+2. TF-IDF vectors are built for every populated document.
+3. Cosine similarity is used to produce ranked pairwise match scores or anchor-vs-batch results.
+4. The app highlights the strongest match, aggregate stats, and practical guidance.
 
 ## Current Limitation
 
@@ -26,6 +28,12 @@ Install dependencies:
 
 ```bash
 npm install
+```
+
+Run the regression tests:
+
+```bash
+npm test
 ```
 
 Start the development server:
@@ -48,6 +56,8 @@ npm run preview
 
 ## Project Files
 
+- `analysisEngine.js` - reusable tokenization, TF-IDF, cosine, and multi-document analysis helpers.
+- `analysisEngine.test.js` - regression coverage for the core analysis engine.
 - `smart_document_analyzer.jsx` - main application logic and UI.
 - `main.jsx` - React entry point.
 - `index.html` - app shell.
